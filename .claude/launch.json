@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "joel-income-journal",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "PATH=/usr/local/bin:$PATH node node_modules/.bin/next dev -H 0.0.0.0 -p 3001"],
+      "port": 3001
+    }
+  ]
+}

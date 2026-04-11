@@ -1,0 +1,17 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "functions": {
+    "app/api/enrich-dividends/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/generate-script/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/prices/route.ts": {
+      "maxDuration": 15
+    }
+  }
+}

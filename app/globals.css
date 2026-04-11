@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg: #0a0e1a;
+  --card: #111827;
+  --border: #1f2937;
+  --muted: #374151;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background-color: var(--bg);
+  color: white;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+/* Table styles */
+.data-table th {
+  @apply text-xs font-medium text-gray-400 uppercase tracking-wider px-4 py-3 text-left;
+}
+.data-table td {
+  @apply px-4 py-3 text-sm border-b border-[#1f2937];
+}
+.data-table tr:last-child td { @apply border-b-0; }
+.data-table tr:hover td { @apply bg-white/[0.02]; }
+
+/* Textarea editor */
+.script-editor {
+  @apply w-full bg-[#0a0e1a] text-gray-200 text-sm leading-relaxed p-4 rounded-lg border border-[#1f2937] resize-none focus:outline-none focus:border-blue-500;
+  font-family: 'Inter', sans-serif;
+  min-height: 600px;
+}
