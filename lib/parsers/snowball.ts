@@ -48,8 +48,8 @@ export function parseSnowballCSV(csvContent: string, month?: string): SnowballPa
 
     const broker = detectBroker(obj['Portfolios'] || '')
 
-    const divYield = parseFloat(obj['Dividend yield']) || 0
-    const divYieldOnCost = parseFloat(obj['Dividend yield on cost']) || 0
+    const divYield = (parseFloat(obj['Dividend yield']) || 0) / 100
+    const divYieldOnCost = (parseFloat(obj['Dividend yield on cost']) || 0) / 100
     const divReceived = parseFloat(obj['Div. received']) || 0
     const taxPaid = parseFloat(obj['Tax']) || 0
 
