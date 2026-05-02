@@ -84,7 +84,7 @@ TONE: Authentic, educational, honest about risks, never hype. Joel is a regular 
 Return ONLY the script text, formatted with clear section headers. Do not add any preamble or explanation.`
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-5',
+    model: 'claude-opus-4-5-20251101',
     max_tokens: 6000,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -121,7 +121,7 @@ SUBSTACK FORMAT:
 Return ONLY the Substack post in markdown format.`
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-5',
+    model: 'claude-opus-4-5-20251101',
     max_tokens: 5000,
     messages: [{ role: 'user', content: prompt }],
   })

@@ -30,6 +30,7 @@ export default function ScriptPage() {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
   const [scriptType, setScriptType] = useState<'youtube' | 'substack'>('youtube')
   const [userNotes, setUserNotes] = useState('')
   const [editedContent, setEditedContent] = useState('')
@@ -49,6 +50,7 @@ export default function ScriptPage() {
   async function generate() {
     if (!report) return
     setGenerating(true)
+    setGenError(null)
     try {
       const res = await fetch('/api/generate-script', {
         method: 'POST',
@@ -66,7 +68,13 @@ export default function ScriptPage() {
         setEditedContent(data.edited_content || data.content)
         // Refresh scripts list
         fetch('/api/generate-script').then(r => r.json()).then(d => setScripts(Array.isArray(d) ? d : []))
+      } else if (data.error) {
+        setGenError(data.error)
+      } else {
+        setGenError('No content returned — please try again.')
       }
+    } catch (e: any) {
+      setGenError(e.message || 'Request failed')
     } finally {
       setGenerating(false)
     }
@@ -198,6 +206,12 @@ export default function ScriptPage() {
             <Sparkles size={16} />
             {generating ? 'Generating...' : `Generate ${scriptType === 'youtube' ? 'YouTube Script' : 'Substack Post'}`}
           </Button>
+
+          {genError && (
+            <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-sm text-red-400">
+              ⚠️ {genError}
+            </div>
+          )}
 
           {/* Previous scripts */}
           {scripts.length > 0 && (
