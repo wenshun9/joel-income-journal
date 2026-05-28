@@ -10,6 +10,7 @@ import { Plus, X, Trash2 } from 'lucide-react'
 const emptyForm = {
   underlying: '', trade_type: 'CSP', open_date: '', expiry_date: '',
   strike_sell: '', strike_buy: '', contracts: '1', premium_collected: '',
+  premium_per_share: '',
   notes: '',
 }
 
@@ -49,6 +50,11 @@ export default function OptionsPage() {
   async function saveTrade() {
     if (!form.underlying || !form.expiry_date || !form.strike_sell) return
     setSaving(true)
+    const contracts = parseInt(form.contracts) || 1
+    // If per-share entered, compute total; otherwise use total directly
+    const totalPremium = form.premium_per_share
+      ? parseFloat(form.premium_per_share) * 100 * contracts
+      : parseFloat(form.premium_collected) || 0
     await fetch('/api/options', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,8 +63,8 @@ export default function OptionsPage() {
         underlying: form.underlying.toUpperCase(),
         strike_sell: parseFloat(form.strike_sell),
         strike_buy: form.strike_buy ? parseFloat(form.strike_buy) : undefined,
-        contracts: parseInt(form.contracts),
-        premium_collected: parseFloat(form.premium_collected),
+        contracts,
+        premium_collected: totalPremium,
         multiplier: 100,
       }),
     })
@@ -284,10 +290,20 @@ export default function OptionsPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Date Opened">
-              <Input type="date" value={form.open_date} onChange={e => setForm({ ...form, open_date: e.target.value })} />
+              <input
+                type="date"
+                value={form.open_date}
+                onChange={e => setForm({ ...form, open_date: e.target.value })}
+                className="w-full bg-[#0a0e1a] border border-[#374151] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]"
+              />
             </Field>
             <Field label="Expiry Date" required>
-              <Input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} />
+              <input
+                type="date"
+                value={form.expiry_date}
+                onChange={e => setForm({ ...form, expiry_date: e.target.value })}
+                className="w-full bg-[#0a0e1a] border border-[#374151] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]"
+              />
             </Field>
           </div>
 
@@ -305,56 +321,73 @@ export default function OptionsPage() {
             </Field>
           </div>
 
+          {/* Premium input — per-share entry with auto-calculated total */}
           <Field
-            label={isLeaps ? 'Total Premium Paid ($) — Cost Basis' : 'Total Premium Collected ($)'}
+            label={isLeaps ? 'Premium Paid per Share ($)' : 'Premium Collected per Share ($)'}
             required
-            hint={isLeaps
-              ? `Total debit paid. e.g. if you bought at $5.50 × 1 contract = $550`
-              : `Total credit received. e.g. if you sold at $1.23 × 1 contract = $123`}
+            hint={`Enter the per-share price. Total = $${form.premium_per_share && form.contracts
+              ? (parseFloat(form.premium_per_share) * 100 * parseInt(form.contracts)).toFixed(2)
+              : '0.00'} (${form.premium_per_share || '0'} × 100 × ${form.contracts || 1} contracts)`}
           >
             <Input
-              type="number" step="0.01" placeholder={isLeaps ? 'e.g. 550.00' : 'e.g. 123.00'}
-              value={form.premium_collected}
-              onChange={e => setForm({ ...form, premium_collected: e.target.value })}
+              type="number" step="0.01" placeholder={isLeaps ? 'e.g. 5.50' : 'e.g. 1.27'}
+              value={form.premium_per_share}
+              onChange={e => setForm({ ...form, premium_per_share: e.target.value, premium_collected: '' })}
             />
           </Field>
+          {/* Show calculated total prominently */}
+          {form.premium_per_share && parseFloat(form.premium_per_share) > 0 && (
+            <div className="flex items-center justify-between bg-[#1f2937] rounded-lg px-4 py-2.5">
+              <span className="text-sm text-gray-400">Total {isLeaps ? 'Debit Paid' : 'Premium Collected'}</span>
+              <span className="text-lg font-semibold text-green-400 font-mono">
+                {formatCurrency(parseFloat(form.premium_per_share) * 100 * (parseInt(form.contracts) || 1))}
+              </span>
+            </div>
+          )}
 
           {/* Spread risk/reward summary */}
-          {isSpread && form.strike_sell && form.strike_buy && form.premium_collected && (
+          {isSpread && form.strike_sell && form.strike_buy && form.premium_per_share && (
             <div className="bg-[#1f2937] rounded-lg p-3 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Max Profit</span>
-                <span className="text-green-400 font-mono">{formatCurrency(parseFloat(form.premium_collected))}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Max Loss</span>
-                <span className="text-red-400 font-mono">
-                  {formatCurrency((Math.abs(parseFloat(form.strike_sell) - parseFloat(form.strike_buy)) - parseFloat(form.premium_collected) / (parseInt(form.contracts) * 100)) * parseInt(form.contracts) * 100)}
-                </span>
-              </div>
+              {(() => {
+                const totalPrem = parseFloat(form.premium_per_share) * 100 * (parseInt(form.contracts) || 1)
+                const maxLoss = (Math.abs(parseFloat(form.strike_sell) - parseFloat(form.strike_buy)) - parseFloat(form.premium_per_share)) * (parseInt(form.contracts) || 1) * 100
+                return <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Max Profit</span>
+                    <span className="text-green-400 font-mono">{formatCurrency(totalPrem)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Max Loss</span>
+                    <span className="text-red-400 font-mono">{formatCurrency(maxLoss)}</span>
+                  </div>
+                </>
+              })()}
             </div>
           )}
 
           {/* LEAPS info panel */}
-          {isLeaps && form.premium_collected && (
+          {isLeaps && form.premium_per_share && (
             <div className="bg-orange-900/20 border border-orange-500/20 rounded-lg p-3 text-xs space-y-1">
               <p className="text-orange-300 font-medium mb-1">Long Call (LEAPS) — Debit Trade</p>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Max Loss (cost basis)</span>
-                <span className="text-red-400 font-mono">{formatCurrency(parseFloat(form.premium_collected))}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Max Profit</span>
-                <span className="text-green-400">Unlimited</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Break-even at expiry</span>
-                <span className="text-white font-mono">
-                  {form.strike_sell && form.contracts
-                    ? `$${(parseFloat(form.strike_sell) + parseFloat(form.premium_collected) / (parseInt(form.contracts) * 100)).toFixed(2)}`
-                    : '—'}
-                </span>
-              </div>
+              {(() => {
+                const totalPrem = parseFloat(form.premium_per_share) * 100 * (parseInt(form.contracts) || 1)
+                return <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Max Loss (cost basis)</span>
+                    <span className="text-red-400 font-mono">{formatCurrency(totalPrem)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Max Profit</span>
+                    <span className="text-green-400">Unlimited</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Break-even at expiry</span>
+                    <span className="text-white font-mono">
+                      {form.strike_sell ? `$${(parseFloat(form.strike_sell) + parseFloat(form.premium_per_share)).toFixed(2)}` : '—'}
+                    </span>
+                  </div>
+                </>
+              })()}
             </div>
           )}
 
