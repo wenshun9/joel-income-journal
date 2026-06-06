@@ -29,7 +29,7 @@ interface StatCardProps {
   label: string
   value: string
   sub?: string
-  color?: 'green' | 'red' | 'blue' | 'gold' | 'white'
+  color?: 'green' | 'red' | 'blue' | 'gold' | 'white' | 'purple'
   icon?: React.ReactNode
 }
 
@@ -40,6 +40,7 @@ export function StatCard({ label, value, sub, color = 'white', icon }: StatCardP
     blue: 'text-blue-400',
     gold: 'text-yellow-400',
     white: 'text-white',
+    purple: 'text-purple-400',
   }
   return (
     <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-5">

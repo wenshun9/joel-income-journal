@@ -46,6 +46,8 @@ export default function OptionsPage() {
   const openLeaps = openTrades.filter(t => t.trade_type === 'LEAPS')
   const totalPremium = openSellTrades.reduce((s: number, t: any) => s + (t.premium_collected || 0), 0)
   const totalLeapsCost = openLeaps.reduce((s: number, t: any) => s + (t.premium_collected || 0), 0)
+  const openCsps = openTrades.filter(t => t.trade_type === 'CSP')
+  const totalCapitalCommitted = openCsps.reduce((s: number, t: any) => s + (t.strike_sell * t.contracts * 100), 0)
 
   async function saveTrade() {
     if (!form.underlying || !form.expiry_date || !form.strike_sell) return
@@ -139,7 +141,7 @@ export default function OptionsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="Realized P&L" value={formatCurrency(closedPnl)} color={closedPnl >= 0 ? 'green' : 'red'} />
         <StatCard label="SPX Spreads P&L" value={formatCurrency(spxPnl)} color={spxPnl >= 0 ? 'green' : 'red'} />
         <StatCard
@@ -158,6 +160,12 @@ export default function OptionsPage() {
         ) : (
           <StatCard label="Open Premium" value={formatCurrency(totalPremium)} sub={`${openSellTrades.length} sell positions`} color="gold" />
         )}
+        <StatCard
+          label="Capital Committed (CSP)"
+          value={formatCurrency(totalCapitalCommitted)}
+          sub={`${openCsps.length} CSP position${openCsps.length !== 1 ? 's' : ''}`}
+          color="purple"
+        />
       </div>
 
       {/* Tabs */}
@@ -190,6 +198,7 @@ export default function OptionsPage() {
                   <th>Type</th>
                   <th>Details</th>
                   <th className="text-right">Premium / Cost</th>
+                  {tab === 'open' && <th className="text-right">Capital Held</th>}
                   <th>Opened</th>
                   <th>Expiry</th>
                   {tab === 'open' && <th className="text-right">DTE</th>}
@@ -224,6 +233,18 @@ export default function OptionsPage() {
                           <div className="text-xs text-gray-500">cost</div>
                         )}
                       </td>
+                      {tab === 'open' && (
+                        <td className="text-right font-mono text-sm">
+                          {t.trade_type === 'CSP' ? (
+                            <div>
+                              <span className="text-purple-400">{formatCurrency(t.strike_sell * t.contracts * 100)}</span>
+                              <div className="text-xs text-gray-500">${t.strike_sell} × {t.contracts}x</div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-600">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className="text-sm text-gray-300">{formatDate(t.open_date)}</td>
                       <td className="text-sm text-gray-300">{formatDate(t.expiry_date)}</td>
                       {tab === 'open' && (
