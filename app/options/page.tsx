@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal, Field, Input, Select } from '@/components/ui/Modal'
 import { Badge, StatusBadge, TradeTypeBadge } from '@/components/ui/Badge'
 import { formatCurrency, formatDate, getPnlColor } from '@/lib/utils'
-import { Plus, X, Trash2 } from 'lucide-react'
+import { Plus, X, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 
 const emptyForm = {
   underlying: '', trade_type: 'CSP', open_date: '', expiry_date: '',
@@ -24,6 +24,10 @@ export default function OptionsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [clearingAll, setClearingAll] = useState(false)
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [search, setSearch] = useState('')
+  const [sortCol, setSortCol] = useState<string>('expiry_date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   async function load() {
     setLoading(true)
@@ -36,7 +40,42 @@ export default function OptionsPage() {
 
   const openTrades = trades.filter(t => t.status === 'open')
   const closedTrades = trades.filter(t => t.status !== 'open')
-  const displayed = tab === 'open' ? openTrades : closedTrades
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const typeFilterMap: Record<string, string[]> = {
+    all: [],
+    csp: ['CSP'],
+    cc: ['CoveredCall'],
+    spreads: ['PutSpread', 'CallSpread'],
+    leaps: ['LEAPS'],
+  }
+
+  const displayed = (tab === 'open' ? openTrades : closedTrades)
+    .filter(t => {
+      const types = typeFilterMap[typeFilter]
+      if (types.length > 0 && !types.includes(t.trade_type)) return false
+      if (search && !t.underlying.toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    })
+    .sort((a, b) => {
+      let av: any, bv: any
+      if (sortCol === 'underlying') { av = a.underlying; bv = b.underlying }
+      else if (sortCol === 'premium_collected') { av = a.premium_collected; bv = b.premium_collected }
+      else if (sortCol === 'capital') { av = a.trade_type === 'CSP' ? a.strike_sell * a.contracts * 100 : 0; bv = b.trade_type === 'CSP' ? b.strike_sell * b.contracts * 100 : 0 }
+      else if (sortCol === 'expiry_date') { av = a.expiry_date || ''; bv = b.expiry_date || '' }
+      else if (sortCol === 'open_date') { av = a.open_date || ''; bv = b.open_date || '' }
+      else if (sortCol === 'dte') { av = a.expiry_date || ''; bv = b.expiry_date || '' }
+      else if (sortCol === 'pnl') { av = a.realized_pnl || 0; bv = b.realized_pnl || 0 }
+      else if (sortCol === 'strike') { av = a.strike_sell; bv = b.strike_sell }
+      else { av = a[sortCol]; bv = b[sortCol] }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
 
   const closedPnl = closedTrades.reduce((s: number, t: any) => s + (t.realized_pnl || 0), 0)
   const spxPnl = closedTrades.filter(t => t.underlying === 'SPXW' || t.underlying === 'SPX').reduce((s: number, t: any) => s + (t.realized_pnl || 0), 0)
@@ -168,14 +207,59 @@ export default function OptionsPage() {
         />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        <button onClick={() => setTab('open')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'open' ? 'bg-blue-600 text-white' : 'bg-[#1f2937] text-gray-400 hover:text-white'}`}>
-          Open ({openTrades.length})
-        </button>
-        <button onClick={() => setTab('closed')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'closed' ? 'bg-blue-600 text-white' : 'bg-[#1f2937] text-gray-400 hover:text-white'}`}>
-          Closed ({closedTrades.length})
-        </button>
+      {/* Tabs + Filters */}
+      <div className="space-y-3">
+        {/* Open / Closed tabs */}
+        <div className="flex gap-2">
+          <button onClick={() => setTab('open')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'open' ? 'bg-blue-600 text-white' : 'bg-[#1f2937] text-gray-400 hover:text-white'}`}>
+            Open ({openTrades.length})
+          </button>
+          <button onClick={() => setTab('closed')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'closed' ? 'bg-blue-600 text-white' : 'bg-[#1f2937] text-gray-400 hover:text-white'}`}>
+            Closed ({closedTrades.length})
+          </button>
+        </div>
+
+        {/* Type filter chips + search */}
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { key: 'all', label: 'All Types' },
+            { key: 'csp', label: 'CSP' },
+            { key: 'cc', label: 'Covered Call' },
+            { key: 'spreads', label: 'Spreads' },
+            { key: 'leaps', label: 'LEAPS' },
+          ].map(f => (
+            <button
+              key={f.key}
+              onClick={() => setTypeFilter(f.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                typeFilter === f.key
+                  ? 'bg-indigo-600 border-indigo-500 text-white'
+                  : 'bg-transparent border-[#374151] text-gray-400 hover:text-white hover:border-gray-500'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+          <div className="ml-auto">
+            <input
+              type="text"
+              placeholder="Search ticker..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="bg-[#1f2937] border border-[#374151] rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 w-36"
+            />
+          </div>
+        </div>
+
+        {/* Active filter summary */}
+        {(typeFilter !== 'all' || search) && (
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span>Showing {displayed.length} trade{displayed.length !== 1 ? 's' : ''}</span>
+            <button onClick={() => { setTypeFilter('all'); setSearch('') }} className="text-blue-400 hover:text-blue-300">
+              Clear filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Trades Table */}
@@ -194,17 +278,34 @@ export default function OptionsPage() {
             <table className="w-full data-table">
               <thead>
                 <tr className="bg-[#0a0e1a]">
-                  <th>Underlying</th>
-                  <th>Type</th>
-                  <th>Details</th>
-                  <th className="text-right">Premium / Cost</th>
-                  {tab === 'open' && <th className="text-right">Capital Held</th>}
-                  <th>Opened</th>
-                  <th>Expiry</th>
-                  {tab === 'open' && <th className="text-right">DTE</th>}
-                  {tab === 'closed' && <th className="text-right">P&L</th>}
-                  <th>Status</th>
-                  <th></th>
+                  {(['underlying', 'type', 'details', 'premium_collected', tab === 'open' ? 'capital' : null, 'open_date', 'expiry_date', tab === 'open' ? 'dte' : null, tab === 'closed' ? 'pnl' : null, 'status', ''] as (string|null)[])
+                    .filter(c => c !== null)
+                    .map(col => {
+                      const labels: Record<string, string> = {
+                        underlying: 'Underlying', type: 'Type', details: 'Details',
+                        premium_collected: 'Premium / Cost', capital: 'Capital Held',
+                        open_date: 'Opened', expiry_date: 'Expiry', dte: 'DTE',
+                        pnl: 'P&L', status: 'Status', '': '',
+                      }
+                      const rightAlign = ['premium_collected','capital','dte','pnl'].includes(col!)
+                      const sortable = ['underlying','premium_collected','capital','open_date','expiry_date','dte','pnl'].includes(col!)
+                      const isActive = sortCol === col
+                      return (
+                        <th key={col} className={rightAlign ? 'text-right' : ''}>
+                          {sortable ? (
+                            <button
+                              onClick={() => toggleSort(col!)}
+                              className={`inline-flex items-center gap-1 hover:text-white transition-colors ${isActive ? 'text-white' : 'text-gray-500'}`}
+                            >
+                              {labels[col!]}
+                              {isActive
+                                ? sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+                                : <ArrowUpDown size={12} className="opacity-40" />}
+                            </button>
+                          ) : labels[col!]}
+                        </th>
+                      )
+                    })}
                 </tr>
               </thead>
               <tbody>
