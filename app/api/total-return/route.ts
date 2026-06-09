@@ -45,7 +45,46 @@ export async function GET(request: NextRequest) {
   const primaryTickers = new Set(primary.map((h: any) => h.ticker))
   const gapFill = secondary.filter((h: any) => !primaryTickers.has(h.ticker))
 
-  const rows: any[] = [...primary, ...gapFill].sort((a, b) => a.ticker.localeCompare(b.ticker))
+  let rows: any[] = [...primary, ...gapFill].sort((a, b) => a.ticker.localeCompare(b.ticker))
+
+  // ── Step 1b: Apply manual transactions on top of base holdings ──
+  const { data: txns } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('source', 'manual')
+    .order('trade_date', { ascending: true })
+
+  if (txns && txns.length > 0) {
+    const holdingMap = new Map<string, any>()
+    rows.forEach(h => holdingMap.set(h.ticker, { ...h }))
+
+    for (const tx of txns) {
+      const ticker = tx.ticker.toUpperCase()
+      const existing = holdingMap.get(ticker)
+
+      if (tx.transaction_type.toLowerCase() === 'buy') {
+        if (existing) {
+          const newShares = existing.shares + tx.shares
+          const newCostBasis = existing.cost_basis + (tx.shares * tx.price)
+          holdingMap.set(ticker, { ...existing, shares: newShares, cost_basis: newCostBasis, cost_per_share: newCostBasis / newShares })
+        } else {
+          holdingMap.set(ticker, { ticker, name: ticker, shares: tx.shares, cost_basis: tx.shares * tx.price, cost_per_share: tx.price, broker: tx.broker || 'Manual', source: 'manual' })
+        }
+      } else if (tx.transaction_type.toLowerCase() === 'sell') {
+        if (existing) {
+          const newShares = existing.shares - tx.shares
+          if (newShares <= 0) {
+            holdingMap.delete(ticker)
+          } else {
+            holdingMap.set(ticker, { ...existing, shares: newShares, cost_basis: existing.cost_per_share * newShares })
+          }
+        }
+      }
+    }
+
+    rows = Array.from(holdingMap.values()).sort((a, b) => a.ticker.localeCompare(b.ticker))
+  }
 
   // ── Step 2: Best available dividend totals per ticker ──
   //
