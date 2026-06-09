@@ -68,6 +68,68 @@ export async function GET(request: NextRequest) {
     rows = [...primary, ...gapFill].sort((a, b) => a.ticker.localeCompare(b.ticker))
   }
 
+  // ── Apply manual transactions on top of base holdings ──
+  const { data: txns } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('source', 'manual')
+    .order('trade_date', { ascending: true })
+
+  if (txns && txns.length > 0) {
+    // Build a map of ticker → row index for quick lookup
+    const holdingMap = new Map<string, any>()
+    rows.forEach(h => holdingMap.set(h.ticker, { ...h }))
+
+    for (const tx of txns) {
+      const ticker = tx.ticker.toUpperCase()
+      const existing = holdingMap.get(ticker)
+
+      if (tx.transaction_type === 'BUY') {
+        if (existing) {
+          // Weighted average cost basis
+          const newShares = existing.shares + tx.shares
+          const newCostBasis = existing.cost_basis + (tx.shares * tx.price)
+          holdingMap.set(ticker, {
+            ...existing,
+            shares: newShares,
+            cost_basis: newCostBasis,
+            cost_per_share: newCostBasis / newShares,
+          })
+        } else {
+          // New holding not in statement
+          holdingMap.set(ticker, {
+            ticker,
+            name: ticker,
+            shares: tx.shares,
+            cost_basis: tx.shares * tx.price,
+            cost_per_share: tx.price,
+            broker: tx.broker || 'Manual',
+            source: 'manual',
+            dividend_yield: null,
+          })
+        }
+      } else if (tx.transaction_type === 'SELL') {
+        if (existing) {
+          const newShares = existing.shares - tx.shares
+          if (newShares <= 0) {
+            // Fully sold — remove from holdings
+            holdingMap.delete(ticker)
+          } else {
+            // Cost basis stays the same per share, just fewer shares
+            holdingMap.set(ticker, {
+              ...existing,
+              shares: newShares,
+              cost_basis: existing.cost_per_share * newShares,
+            })
+          }
+        }
+      }
+    }
+
+    rows = Array.from(holdingMap.values()).sort((a, b) => a.ticker.localeCompare(b.ticker))
+  }
+
   // ── Enrich with live prices ──
   const tickers = Array.from(new Set(rows.map((h: any) => h.ticker)))
   const prices = await fetchLivePrices(tickers)
