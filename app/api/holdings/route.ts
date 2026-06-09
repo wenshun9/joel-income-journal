@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       const ticker = tx.ticker.toUpperCase()
       const existing = holdingMap.get(ticker)
 
-      if (tx.transaction_type === 'BUY') {
+      if (tx.transaction_type.toLowerCase() === 'buy') {
         if (existing) {
           // Weighted average cost basis
           const newShares = existing.shares + tx.shares
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
             dividend_yield: null,
           })
         }
-      } else if (tx.transaction_type === 'SELL') {
+      } else if (tx.transaction_type.toLowerCase() === 'sell') {
         if (existing) {
           const newShares = existing.shares - tx.shares
           if (newShares <= 0) {
