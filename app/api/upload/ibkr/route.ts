@@ -85,20 +85,32 @@ export async function POST(request: NextRequest) {
 
     // ─── Upsert Options (by symbol + upload_month, skip existing manual ones) ──
     if (options.length > 0) {
-      // Only import options that don't already exist as manual entries
+      // Fetch ALL manually logged trades for this user (no upload_month filter —
+      // manual trades are never assigned an upload_month)
       const { data: existingManual } = await supabase
         .from('options_trades')
-        .select('symbol')
+        .select('underlying, expiry_date, strike_sell, open_date, contracts')
         .eq('user_id', user.id)
-        .eq('upload_month', month)
         .eq('source', 'manual')
 
-      const manualSymbols = new Set((existingManual || []).map(r => r.symbol))
+      // Build a dedup key: underlying|expiry|strike|open_date
+      const manualKeys = new Set(
+        (existingManual || []).map(r =>
+          `${r.underlying}|${r.expiry_date}|${r.strike_sell}|${r.open_date}`
+        )
+      )
 
-      const toInsert = options.filter(o => !manualSymbols.has(o.symbol))
+      // Skip any IBKR trade that matches a manually logged trade on key fields
+      const toInsert = options.filter(o => {
+        const key = `${o.underlying}|${o.expiry_date}|${o.strike_sell}|${o.open_date}`
+        return !manualKeys.has(key)
+      })
+
+      const skipped = options.length - toInsert.length
+      if (skipped > 0) errors.push(`ℹ️ Skipped ${skipped} option(s) already logged manually`)
 
       if (toInsert.length > 0) {
-        // Remove existing IBKR imports for this month first
+        // Remove existing IBKR imports for this month first to avoid re-import dupes
         await supabase
           .from('options_trades')
           .delete()
